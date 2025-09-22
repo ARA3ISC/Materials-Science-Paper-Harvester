@@ -1,177 +1,83 @@
-# 🔬 Materials Science Papers Harvester
+# 📖 Materials Science Papers Harvester — Hosted App Guide
 
-A Streamlit web app to **search, aggregate, and download scientific papers in materials science**.
-It queries multiple popular sources (OpenAlex, Crossref, arXiv, Semantic Scholar, DOAJ, PubMed, Springer, Elsevier/ScienceDirect, IEEE Xplore), deduplicates results, enriches with Unpaywall and landing-page scraping to recover missing PDF URLs, and exports clean JSONL/CSV files. Users can preview results and **download all available PDFs as a single ZIP** to their local computer.
-
----
-
-## ✨ Features
-
-* Search by **topic keywords** and year range.
-* Aggregate results from many literature APIs.
-* Normalize records into a consistent schema.
-* Deduplicate using DOI and fuzzy title matching.
-* Enrich missing PDF URLs via Unpaywall + landing-page scraping.
-* Export to **CSV** and **JSONL**.
-* **Streamlit UI**:
-
-  * Logs and progress indicators.
-  * Preview CSV in-browser.
-  * One-click **download of all PDFs as a ZIP**.
-  * Download failures log (for missing/broken PDFs).
+This is the **user guide** for the deployed Streamlit app. It focuses on how to use the hosted version, not on development or deployment.
 
 ---
 
-## 📂 Project Structure
+## 🌐 Access
 
-```
-.
-├── app.py                        # Streamlit UI
-├── materials_papers_harvester.py # Main harvester (no PDF download)
-├── download_verified_pdfs.py     # Bulk PDF downloader + verification
-├── requirements.txt              # Python dependencies
-├── .gitignore                    # Ignore venv + outputs
-├── .streamlit/
-│   └── secrets.toml              # Local secrets (API keys, optional)
-└── runs/                         # Created at runtime, holds outputs
-```
+Open the app in your browser at:
+
+👉 **https://ms-paper-harvester.streamlit.app/**
 
 ---
 
-## ⚙️ Requirements
+## 🔎 How to Use the App
 
-* Python 3.9+
-* Packages listed in `requirements.txt`:
+1. **Enter your query**
 
-  ```
-  streamlit
-  pandas
-  requests
-  beautifulsoup4
-  tenacity
-  rapidfuzz
-  pypdf
-  ```
+   * In the sidebar, type topic keywords (e.g., `perovskite thin films defect passivation`).
 
----
+2. **Set filters**
 
-## 🚀 Running Locally
+   * Choose the year range with the slider.
+   * Adjust *max per source* if you want more/less results.
+   * Enable **Strict mode** to keep only records strongly relevant to materials science.
 
-1. Clone the repo:
+3. **Run the search**
 
-   ```bash
-   git clone https://github.com/your-username/materials-harvester.git
-   cd materials-harvester
-   ```
+   * Click **🚀 Start harvest**.
+   * Progress and logs will show in the main panel.
 
-2. Create a virtual environment:
+4. **Preview results**
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate     # Windows: venv\Scripts\activate
-   ```
+   * After the run, the newest CSV file is shown in a table.
+   * You can scroll and inspect metadata like title, abstract, DOI, PDF link, etc.
 
-3. Install dependencies:
+5. **Download CSV**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+   * Use the **⬇️ Download CSV** button to save the full table to your computer.
 
-4. Add your API keys (see below) in `.streamlit/secrets.toml`:
+6. **Download PDFs**
 
-   ```toml
-   SPRINGER_API_KEY = "your-springer-meta-key"
-   ELSEVIER_API_KEY = "your-elsevier-key"
-   IEEE_API_KEY = "your-ieee-key"
-   CROSSREF_EMAIL = "your.email@domain.com"
-   EMAIL = "your.email@domain.com"
-   SEMANTIC_SCHOLAR_API_KEY = "optional-semantic-key"
-   ```
+   * Scroll to the **Download PDFs** section.
+   * The app will:
 
-5. Run the app:
-
-   ```bash
-   streamlit run app.py
-   ```
-
-Open [http://localhost:8501](http://localhost:8501) in your browser.
-
----
-
-## 🔑 API Keys / Secrets
-
-* **Springer Metadata API** → `SPRINGER_API_KEY` (use Meta API key)
-* **Elsevier (ScienceDirect) API** → `ELSEVIER_API_KEY`
-* **IEEE Xplore API** → `IEEE_API_KEY`
-* **Crossref & PubMed** → set your email for `CROSSREF_EMAIL` and `EMAIL`
-* **Semantic Scholar API** (optional) → `SEMANTIC_SCHOLAR_API_KEY`
-
-### On Streamlit Cloud
-
-Set secrets in the app settings (App page → ⋮ → Settings → Secrets). Paste JSON like:
-
-```json
-{
-  "SPRINGER_API_KEY": "xxxxx",
-  "ELSEVIER_API_KEY": "xxxxx",
-  "IEEE_API_KEY": "xxxxx",
-  "CROSSREF_EMAIL": "you@domain.com",
-  "EMAIL": "you@domain.com",
-  "SEMANTIC_SCHOLAR_API_KEY": "optional"
-}
-```
-
----
-
-## ☁️ Deploying on Streamlit Cloud
-
-1. Push this repo to GitHub.
-2. Go to [https://share.streamlit.io](https://share.streamlit.io) and click **New app**.
-3. Select your repo/branch and set `app.py` as the entrypoint.
-4. Add API keys in **Secrets** (see above).
-5. The app will rebuild and launch automatically.
+     * Fetch all valid `pdf_url` links from the CSV.
+     * Verify each file.
+     * Bundle them into a single ZIP.
+   * Click **⬇️ Download all PDFs as ZIP** to save them directly to your laptop.
+   * If some files fail, you can download `failed_downloads.csv` to see which ones.
 
 ---
 
 ## 📦 Outputs
 
-* **CSV**: Tabular file with metadata and PDF URLs.
-* **JSONL**: JSON lines file for programmatic analysis.
-* **ZIP**: All downloaded PDFs (optional) to your laptop.
-* **failed\_downloads.csv**: Records with broken/missing PDFs.
+* **CSV file** — all harvested metadata.
+* **ZIP file** — all available PDFs, bundled for easy download.
+* **failed\_downloads.csv** — list of papers that did not yield a valid PDF.
 
 ---
 
-## 🧭 Usage Notes
+## ⚠️ Notes for Users
 
-* Files saved in the cloud environment are temporary. Use the **Download CSV** or **Download ZIP** buttons to save them locally.
-* Respect API rate limits — use your keys and institutional email where required.
-* The harvester does not bypass paywalls: PDF download succeeds only if a valid open-access link is available.
-* Unpaywall email is set to `mohamed.aneddame-ext@um6p.ma` by default in the code (change if needed).
-
----
-
-## 🛠 Troubleshooting
-
-* **App build fails** → verify `requirements.txt` contains every package you import.
-* **Missing results from a source** → ensure corresponding API key is set in secrets and the API quota isn’t exhausted.
-* **Downloads not appearing locally when deployed** → the app stores files in the container; use the ZIP download button to save to your laptop.
-* **OpenAlex/DOAJ errors** → the code uses corrected endpoints and parameters; ensure you’re running the latest `materials_papers_harvester.py`.
+* Results depend on availability in public APIs; not all papers will have open-access PDFs.
+* Files are stored temporarily in the app’s cloud environment — always use the **Download** buttons to save them locally.
+* Large queries may take several minutes, especially if many sources are polled.
 
 ---
 
-## 🙏 Attribution
+## 🙋 FAQ
 
-This project queries and aggregates metadata from multiple scholarly APIs and respects each provider’s terms of service:
+* **Q: Why are some PDFs missing?**
+  A: Not all publishers provide open-access copies. If a paper is paywalled, the PDF link will be empty.
 
-* OpenAlex, Crossref, arXiv, Semantic Scholar, DOAJ, PubMed/NCBI E-utilities, Springer Metadata API, Elsevier/ScienceDirect API, IEEE Xplore.
+* **Q: How do I get more results?**
+  A: Increase *max per source* in the sidebar, but note that APIs often have rate limits.
+
+* **Q: Is my email needed?**
+  A: The app already identifies itself to APIs using a built-in contact email. You don’t need to provide one.
 
 ---
 
-## 📬 Contact / Contributions
-
-If you find bugs or want to contribute, please open an issue or pull request on the GitHub repo. For questions about API usage, include log output and the query you used.
-
----
-
-*Happy harvesting!*
+*Enjoy exploring materials science literature!*
