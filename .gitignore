@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+
+# runtime outputs
+runs/
+*.csv
+*.jsonl
+pdfs/
+failed_downloads.csv
