@@ -1,19 +1,20 @@
-# app.py — Streamlit UI for materials_papers_harvester.py + CSV preview + one-click PDF download
+# app.py — Streamlit UI for materials_papers_harvester.py + CSV preview + bulk PDF download (ZIP to user)
 import streamlit as st
-import subprocess, sys, time
+import subprocess, sys, time, io, zipfile, shutil
 from pathlib import Path
 import pandas as pd
 
 st.set_page_config(page_title="Materials Harvester", layout="wide")
 st.title("🔬 Materials Science Paper Harvester")
-st.caption("Run the harvester to create a CSV, preview it, and (optionally) download all PDFs listed in the CSV.")
+st.caption("Run the harvester, preview CSV, and download all PDFs to your laptop as a ZIP.")
 
 # ---- Fixed locations ---------------------------------------------------------
-WORKDIR = Path("runs/materials_harvest")
+ROOT = Path(__file__).parent.resolve()
+WORKDIR = ROOT / "runs" / "materials_harvest"
 WORKDIR.mkdir(parents=True, exist_ok=True)
 
-SCRIPT_PATH = (Path(__file__).parent / "materials_papers_harvester.py").resolve()
-DOWNLOADER_SCRIPT = (Path(__file__).parent / "download_verified_pdfs.py").resolve()  # external downloader
+SCRIPT_PATH = ROOT / "materials_papers_harvester.py"
+DOWNLOADER_SCRIPT = ROOT / "download_verified_pdfs.py"   # external downloader
 
 # ---- Sidebar ----------------------------------------------------------------
 with st.sidebar:
@@ -25,6 +26,8 @@ with st.sidebar:
 
     st.header("⚙️ Options")
     strict = st.checkbox("Strict materials relevance filter", value=True)
+    no_validate = st.checkbox("Speed up PDF link sniff (disable strict validate)", value=False,
+                              help="Passes --no-validate to the harvester PDF enrichment step")
 
     st.header("📦 Outputs")
     out_base = st.text_input("Output base filename (no path)", value="materials_results")
@@ -37,6 +40,16 @@ def list_files(root: Path):
 def newest_csv(root: Path):
     cs = list(Path(root).rglob("*.csv"))
     return max(cs, key=lambda p: p.stat().st_mtime) if cs else None
+
+def zip_dir_in_memory(base_dir: Path) -> io.BytesIO:
+    """Zip a directory (only PDFs) into a BytesIO for download_button."""
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(base_dir.rglob("*.pdf")):
+            if p.is_file():
+                zf.write(p, arcname=str(p.relative_to(base_dir)))
+    mem.seek(0)
+    return mem
 
 # ---- Run controls ------------------------------------------------------------
 st.subheader("Run harvester")
@@ -83,6 +96,8 @@ if run:
                 cmd += ["--csv", csv_name]
             if strict:
                 cmd.append("--strict")
+            if no_validate:
+                cmd.append("--no-validate")
 
             try:
                 proc = subprocess.Popen(
@@ -162,38 +177,61 @@ if run:
             except Exception as e:
                 st.warning(f"Could not read CSV: {e}")
 
-# ---- Download PDFs from CSV --------------------------------------------------
-st.subheader("⬇️ Download PDFs listed in a CSV")
+# ---- Download PDFs from CSV + offer ZIP to user -----------------------------
+st.subheader("⬇️ Download PDFs listed in a CSV (as a ZIP to your computer)")
+
 csv_default = str(csv_path) if csv_path else (str(newest_csv(WORKDIR)) if newest_csv(WORKDIR) else "")
 dl_csv = st.text_input("CSV path (must contain a 'pdf_url' column)", value=csv_default)
-pdf_outdir = st.text_input("Output folder", value="runs/pdfs")
+pdf_outdir = st.text_input("Temporary download folder (inside app sandbox)", value="runs/pdfs")
 skip_existing = st.checkbox("Skip existing valid PDFs", value=True)
+make_zip = st.checkbox("Bundle into a single ZIP for download", value=True)
 
-dl_btn = st.button("Start PDF download", type="primary")
+col_a, col_b = st.columns([1,1])
+with col_a:
+    dl_btn = st.button("Start PDF download", type="primary", use_container_width=True)
+with col_b:
+    cleanup_btn = st.button("🧹 Clean temp PDFs folder", use_container_width=True)
+
+if cleanup_btn:
+    p = ROOT / pdf_outdir
+    if p.exists():
+        try:
+            shutil.rmtree(p)
+            st.success(f"Cleared: {p}")
+        except Exception as e:
+            st.warning(f"Could not clear {p}: {e}")
+    else:
+        st.info("Nothing to clean.")
+
 if dl_btn:
     if not DOWNLOADER_SCRIPT.exists():
         st.error(f"Downloader not found: {DOWNLOADER_SCRIPT}")
     elif not dl_csv or not Path(dl_csv).exists():
         st.error("CSV path is empty or does not exist.")
     else:
-        Path(pdf_outdir).mkdir(parents=True, exist_ok=True)
+        outdir_abs = ROOT / pdf_outdir
+        outdir_abs.mkdir(parents=True, exist_ok=True)
         cmd_dl = [
             sys.executable, str(DOWNLOADER_SCRIPT),
-            "--in", dl_csv,
-            "--outdir", pdf_outdir,
+            "--in", str(Path(dl_csv).resolve()),
+            "--outdir", str(outdir_abs),
         ]
         if skip_existing:
             cmd_dl.append("--skip-existing")
 
         with st.status("Downloading PDFs…", expanded=True) as s:
             try:
-                # Run in project root so relative paths behave as expected
-                proc_dl = subprocess.run(cmd_dl, text=True, capture_output=True, cwd=str(Path(__file__).parent))
+                # Run from project root so relative paths behave as expected
+                proc_dl = subprocess.run(cmd_dl, text=True, capture_output=True, cwd=str(ROOT))
                 st.code(proc_dl.stdout or "(no output)")
                 if proc_dl.returncode == 0:
                     s.update(label="Completed ✔️", state="complete")
-                    st.success(f"PDFs saved under: {pdf_outdir}")
-                    fail_log = Path("failed_downloads.csv")
+                    # Count PDFs
+                    files = sorted([p for p in outdir_abs.rglob("*.pdf") if p.is_file()])
+                    st.success(f"Downloaded **{len(files)}** PDF(s) to temporary folder: `{outdir_abs}`")
+
+                    # Offer failures CSV (if any)
+                    fail_log = ROOT / "failed_downloads.csv"
                     if fail_log.exists():
                         st.download_button(
                             "⬇️ Download failures CSV",
@@ -201,6 +239,23 @@ if dl_btn:
                             file_name="failed_downloads.csv",
                             mime="text/csv"
                         )
+
+                    # Offer ZIP to user
+                    if make_zip and files:
+                        # In-memory ZIP (best UX on Streamlit Cloud)
+                        zip_bytes = zip_dir_in_memory(outdir_abs)
+                        st.download_button(
+                            "⬇️ Download all PDFs as ZIP",
+                            data=zip_bytes,
+                            file_name="materials_pdfs.zip",
+                            mime="application/zip"
+                        )
+
+                        # Optional: show up to 200 file names
+                        with st.expander("Show individual files"):
+                            for p in files[:200]:
+                                st.write(f"- {p.name}")
+
                 else:
                     s.update(label="Failed", state="error")
                     st.error(proc_dl.stderr or "Downloader returned non-zero exit code.")
@@ -209,4 +264,7 @@ if dl_btn:
                 st.exception(e)
 
 st.markdown("---")
-st.caption("Tip: the downloader verifies each PDF (header/footer; optional pypdf parse) and logs failures to failed_downloads.csv.")
+st.caption(
+    "Notes: On Streamlit Cloud, files are stored temporarily in the app sandbox. "
+    "Use the ZIP button above to save all PDFs to your local computer."
+)
