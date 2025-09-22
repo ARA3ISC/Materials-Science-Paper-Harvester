@@ -190,18 +190,23 @@ col_a, col_b = st.columns([1,1])
 with col_a:
     dl_btn = st.button("Start PDF download", type="primary", use_container_width=True)
 with col_b:
-    cleanup_btn = st.button("🧹 Clean temp PDFs folder", use_container_width=True)
+    cleanup_btn = st.button("🧹 Clear all results", use_container_width=True)
 
 if cleanup_btn:
-    p = ROOT / pdf_outdir
-    if p.exists():
-        try:
-            shutil.rmtree(p)
-            st.success(f"Cleared: {p}")
-        except Exception as e:
-            st.warning(f"Could not clear {p}: {e}")
-    else:
-        st.info("Nothing to clean.")
+    try:
+        # remove both PDFs and harvested results
+        pdf_dir = ROOT / pdf_outdir
+        harvest_dir = WORKDIR
+        if pdf_dir.exists():
+            shutil.rmtree(pdf_dir)
+        if harvest_dir.exists():
+            shutil.rmtree(harvest_dir)
+        # recreate empty harvest dir so app still works
+        harvest_dir.mkdir(parents=True, exist_ok=True)
+        st.success("✅ Cleared all stored results (CSVs and PDFs) from the server.")
+    except Exception as e:
+        st.warning(f"Could not clear data: {e}")
+
 
 if dl_btn:
     if not DOWNLOADER_SCRIPT.exists():
