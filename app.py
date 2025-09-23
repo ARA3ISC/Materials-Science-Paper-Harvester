@@ -317,16 +317,3 @@ st.caption(
     "Use the ZIP button to save all PDFs to your local computer once harvesting is complete."
 )
 
-import os
-
-# Debug: check if keys are loaded (show only first 4 chars for safety)
-def check_env(key: str):
-    val = os.getenv(key)
-    if val:
-        return f"{key} ✅ (starts with {val[:4]}..., length {len(val)})"
-    else:
-        return f"{key} ❌ not set"
-
-st.sidebar.subheader("🔑 Secrets check (debug)")
-for k in ["SPRINGER_API_KEY", "ELSEVIER_API_KEY", "IEEE_API_KEY", "CROSSREF_EMAIL", "EMAIL"]:
-    st.sidebar.text(check_env(k))
