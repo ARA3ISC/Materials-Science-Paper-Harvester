@@ -317,3 +317,5 @@ st.caption(
     "Use the ZIP button to save all PDFs to your local computer once harvesting is complete."
 )
 
+import streamlit as st
+st.write(st.secrets.get("api_key", "No key in st.secrets"))

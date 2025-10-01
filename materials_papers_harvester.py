@@ -397,6 +397,7 @@ def search_semantic_scholar(query: str, y0: int, y1: int, limit: int) -> List[Re
     """
     out: List[Record] = []
     key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+    print(f'\n\n\n{key}\n\n\n')
     headers = {"x-api-key": key} if key else {}
     base = "https://api.semanticscholar.org/graph/v1/paper/search"
     offset = 0
